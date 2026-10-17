@@ -111,22 +111,22 @@ Because the core RTL blocks contain sensitive aerospace IP, this repository cata
 *   `receive.cpp` / `receive.h` — Asynchronous multi-threaded worker thread managing underlying raw UDP sockets and safe 29-byte telemetry array filtering.
 
 ### 🗺️ System Layout Block Blueprints
-*   `abcu_block_diagram.jpg` — Block diagram illustrating the unified system architecture (`Top_System`) across data synchronizers, 32-channel Tx/Rx paths, and the AXI telemetries.
-*   `ethernet_uart_bridge.jpg` — Detailed hardware netlist block diagram exported from Vivado tracking MicroBlaze connections, AXI interconnect lines, peripheral cores, and 32-channel pin assignments.
-*   `gui_group_controller_unit.jpg` — Interface screenshot of the Qt user dashboard tracking status indicators for all 32 independent channels (GC 01 to GC 32).
-*   `gui_gc1_dialog_box.jpg` — Modular pop-up panel detailing binary ON/OFF control selections and error diagnostics for the 16 localized elements on channel GC 1.
-*   `gui_rfif_cal_unit.jpg` — Dedicated RF front-end diagnostics panel showing real-time voltage profiles, temperature status loops, and calibration flags (RFIF_CAL_IN).
-*   `gui_message_monitor.jpg` — Telemetry window logging explicit hex string payload text captures for incoming (Rx) and outgoing (Tx) UDP packet streams.
+*   `abcu_block_diagram.png` — Block diagram illustrating the unified system architecture (`Top_System`) across data synchronizers, 32-channel Tx/Rx paths, and the AXI telemetries.
+*   `ethernet_uart_bridge.png` — Detailed hardware netlist block diagram exported from Vivado tracking MicroBlaze connections, AXI interconnect lines, peripheral cores, and 32-channel pin assignments.
+*   `gui_group_controller_unit.png` — Interface screenshot of the Qt user dashboard tracking status indicators for all 32 independent channels (GC 01 to GC 32).
+*   `gui_gc1_dialog_box.png` — Modular pop-up panel detailing binary ON/OFF control selections and error diagnostics for the 16 localized elements on channel GC 1.
+*   `gui_rfif_cal_unit.png` — Dedicated RF front-end diagnostics panel showing real-time voltage profiles, temperature status loops, and calibration flags (RFIF_CAL_IN).
+*   `gui_message_monitor.png` — Telemetry window logging explicit hex string payload text captures for incoming (Rx) and outgoing (Tx) UDP packet streams.
 
 ### 📜 Protocol Frame Structures & Message Formats
 *   `otrm_power_pkt.png` — Structural byte map mapping the 15-byte **Power Control Packet** layout, showcasing bit toggling allocations per OTRM element and the multi-state power definitions (Default, Power_on, Power_off).
 *   `dwell_phase_pkt.png` — Architectural reference layout defining the 15-byte **Dwell Mode Message Format**, outlining the explicit positioning of phase gradients (\(P_A, P_B\)), frequency IDs, and array table designations.
 
 ### 📊 Real-Time Hardware Logic Waveforms
-*   `tx_waveform_packet1_otrm.jpg` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 1 frames marked by the `x"0F"` OTRM identifier.
-*   `tx_waveform_packet2_phase.jpg` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 2 phase parameters marked by the `x"32"` function code.
-*   `rx_waveform_abcu_interface_otrm.jpg` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 1 frames marked by the `x"0F"` OTRM identifier, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
-*   `rx_waveform_abcu_interface_phase.jpg` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 2 phase parameters marked by the `x"32"` function code, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
+*   `tx_waveform_packet1_otrm.png` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 1 frames marked by the `x"0F"` OTRM identifier.
+*   `tx_waveform_packet2_phase.png` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 2 phase parameters marked by the `x"32"` function code.
+*   `rx_waveform_abcu_interface_otrm.png` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 1 frames marked by the `x"0F"` OTRM identifier, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
+*   `rx_waveform_abcu_interface_phase.png` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 2 phase parameters marked by the `x"32"` function code, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
 *   `README.md` — Main technical documentation page.
 
 
