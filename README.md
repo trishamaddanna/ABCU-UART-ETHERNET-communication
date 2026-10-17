@@ -118,6 +118,10 @@ Because the core RTL blocks contain sensitive aerospace IP, this repository cata
 *   `gui_rfif_cal_unit.jpg` — Dedicated RF front-end diagnostics panel showing real-time voltage profiles, temperature status loops, and calibration flags (RFIF_CAL_IN).
 *   `gui_message_monitor.jpg` — Telemetry window logging explicit hex string payload text captures for incoming (Rx) and outgoing (Tx) UDP packet streams.
 
+### 📜 Protocol Frame Structures & Message Formats
+*   `otrm_power_pkt.png` — Structural byte map mapping the 15-byte **Power Control Packet** layout, showcasing bit toggling allocations per OTRM element and the multi-state power definitions (Default, Power_on, Power_off).
+*   `dwell_phase_pkt.png` — Architectural reference layout defining the 15-byte **Dwell Mode Message Format**, outlining the explicit positioning of phase gradients (\(P_A, P_B\)), frequency IDs, and array table designations.
+
 ### 📊 Real-Time Hardware Logic Waveforms
 *   `tx_waveform_packet1_otrm.jpg` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 1 frames marked by the `x"0F"` OTRM identifier.
 *   `tx_waveform_packet2_phase.jpg` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 2 phase parameters marked by the `x"32"` function code.
