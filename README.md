@@ -78,7 +78,7 @@ The operational stack maps across three separate firmware and software applicati
 ### 1. Bootloader Application (`bootloader.c`)
 Resides in primary non-volatile Quad-SPI (QSPI) Flash memory. Upon a power-on-reset (POR) or hardware reset condition, it mounts the SPI flash lines, locates the SREC image starting at flash base address `0x01000000`, copies the binary application sections into DDR3 RAM, and branches execution to the main application address.
 
-### 2. Ethernet Application (`telemetry_server.c` / `main.c`)
+### 2. Ethernet Application (`echo.c` / `main.c`)
 An embedded standalone application executing on the MicroBlaze processor core utilizing the **lwIP (Lightweight IP) protocol stack**. It establishes network interface bindings, mounts raw UDP PCBs, and loops indefinitely to monitor `xemacif_input()` network lines while checking `transfer_data()` hooks to handle DMA transfers.
 
 ### 3. Qt Graphical User Interface Dashboard
@@ -114,20 +114,23 @@ Because the core RTL blocks contain sensitive aerospace IP, this repository cata
 ### 🗺️ System Layout Block Blueprints
 *   `abcu_block_diagram.png` — Block diagram illustrating the unified system architecture (`Top_System`) across data synchronizers, 32-channel Tx/Rx paths, and the AXI telemetries.
 *   `ethernet_uart_bridge.png` — Detailed hardware netlist block diagram exported from Vivado tracking MicroBlaze connections, AXI interconnect lines, peripheral cores, and 32-channel pin assignments.
+
+### 🖥️ Qt User Interface Dashboard Captures
+*   `gui_calibration.png` — Main dashboard view set to **Calibration Mode**, showcasing real-time hexadecimal transmission codes (`Tx`/`Rx`) within the Message Monitor layout.
+*   `gui_normal.png` — Main dashboard view set to **Normal Mode**, illustrating independent standalone phase tracking setups and telemetry verification.
+*   `gui_array_geometry.png` — Active panel representation displaying the real-time **Array Geometry** interface configured for a dynamic 16x8 matrix array block selection layout.
 *   `gui_group_controller_unit.png` — Interface screenshot of the Qt user dashboard tracking status indicators for all 32 independent channels (GC 01 to GC 32).
 *   `gui_gc1_dialog_box.png` — Modular pop-up panel detailing binary ON/OFF control selections and error diagnostics for the 16 localized elements on channel GC 1.
 *   `gui_rfif_cal_unit.png` — Dedicated RF front-end diagnostics panel showing real-time voltage profiles, temperature status loops, and calibration flags (RFIF_CAL_IN).
-*   `gui_message_monitor.png` — Telemetry window logging explicit hex string payload text captures for incoming (Rx) and outgoing (Tx) UDP packet streams.
 
 ### 📜 Protocol Frame Structures & Message Formats
 *   `otrm_power_pkt.png` — Structural byte map mapping the 15-byte **Power Control Packet** layout, showcasing bit toggling allocations per OTRM element and the multi-state power definitions (Default, Power_on, Power_off).
 *   `dwell_phase_pkt.png` — Architectural reference layout defining the 15-byte **Dwell Mode Message Format**, outlining the explicit positioning of phase gradients (\(P_A, P_B\)), frequency IDs, and array table designations.
 
 ### 📊 Real-Time Hardware Logic Waveforms
-*   `tx_waveform_packet1_otrm.png` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 1 frames marked by the `x"0F"` OTRM identifier.
-*   `tx_waveform_packet2_phase.png` — Simulation timing trace tracking multi-channel `tx_data_8_x` data registers outputting Packet 2 phase parameters marked by the `x"32"` function code.
-*   `rx_waveform_abcu_interface_otrm.png` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 1 frames marked by the `x"0F"` OTRM identifier, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
-*   `rx_waveform_abcu_interface_phase.png` — Vivado logic analyzer trace verifying incoming `rx_data_8_1` bytes, physical `SDO`/`SDI` LVDS pin matrix states outputting Packet 2 phase parameters marked by the `x"32"` function code, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
+*   `txrx_waveform_calibpkt.png` — Single-channel handshake timing trace verifying exact transaction-level byte execution (`ac 0f 02`) during an active Calibration Mode command sweep, physical `SDO`/`SDI` LVDS pins, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
+*   `txrx_waveform_normalphasepkt.png` — Single-channel handshake timing trace verifying exact transaction-level byte execution (`ac 32 01`) during an active Normal/Dwell Mode command sweep, physical `SDO`/`SDI` LVDS pins, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
+*   `txrx_waveform_otrmpowerpkt.png` — Serial timing trace tracking single-ended baseline line decodes and OTRM header matching loops (`ac 0f 14`).
+*   `txmultichan_waveform_calibpkt.png` — Multi-channel simulation waveform demonstrating simultaneous parallel bus data output across channels (`tx_data_8_2` to `tx_data_8_20`) under a Calibration Mode layout.
+*   `txmultichan_waveform_normalphasepkt.png` — Multi-channel simulation waveform demonstrating simultaneous parallel bus data output across channels (`tx_data_8_2` to `tx_data_8_20`) under a Normal/Dwell Mode layout.
 *   `README.md` — Main technical documentation page.
-
-
