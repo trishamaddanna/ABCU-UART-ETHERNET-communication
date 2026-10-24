@@ -34,15 +34,15 @@ The Ethernet communications hub is constructed by interfacing dedicated soft IP 
 ### 2. Data Synchronizer Components (`AXI_To_Tx_Bridge.vhd`)
 Acts as the downward command parsing buffer that transitions data between high-frequency processor buses and physical output pins:
 *   **AXI-Stream Interface Bus:** Latches 32-bit streaming data blocks directly from the processor's memory queues.
-*   **8-State Protocol FSM:** Runs through an algorithmic tracking loop (`INIT_STABILIZE` → `CAPTURE_HEADER` → `GC_WORD_A` → `GC_WORD_B` → `GC_WORD_C`) to parse multi-byte header boundaries. It locks frames on an identifier tag (`x"AAA1"`), isolates global status registers (`RFIF_CTRL_SW`), and buffers spatial phase matrix tracking words into localized register arrays.
+*   **8-State Protocol FSM:** Runs through an algorithmic tracking loop (`INIT_STABILIZE` → `CAPTURE_HEADER` → `GC_WORD_A` → `GC_WORD_B` → `GC_WORD_C`) to parse multi-byte header boundaries. It actively checks for early stream terminations (`m_axis_tlast = '1'`), locks valid frames on an identifier tag (`x"AAA1"`), isolates hardware control switches (`RFIF_CTRL_SW`), and transitions directly to data processing states unconditionally upon header validation to guarantee continuous OTRM updates.
 *   **Array Payload Demultiplexer:** Splits the 32-bit streaming data back into multi-channel parallel structures (`data_array`) distributing specialized command vectors to individual channel modules.
 
 ### 3. VHDL UART Components over LVDS
 The serialization network bypasses traditional processor bottlenecks by implementing parallel hardware modules mapped directly onto Low-Voltage Differential Signaling pairs:
-*   **32-Channel Transmit Network (`Tx_Channel.vhd`):** Spans 32 parallel transmit channels operating on a synchronous low-frequency clock domain (f = 10 MHz). It features a mid-sampling data collection grid that updates output ports bit-by-bit to maintain stable transmission lines.
+*   **32-Channel Transmit Network (`Tx_Channel.vhd`):** Spans 32 parallel transmit channels operating on a synchronous low-frequency clock domain (f = 10 MHz). Features a mid-sampling data collection architecture that compiles three independent physical packet structures (`pkt_otrm_data`, `pkt_phase_data`, and `pkt_mode02_data`). It uses a dynamic mode tracking port (`mode_data_out`) to conditionally branch output streams on the second packet window based on the active GUI layout command.
 *   **32-Channel Receive Network (`Rx_GC_To_ABCU.vhd`):** Spans 32 parallel receive channels operating on a high-speed clock domain (f = 200 MHz). It uses an oversampling majority-voting architecture to accurately capture in-sync bytes over noisy differential physical lines.
 
-### 4. Upward Telemetry Bridge Components (`Rx_To_AXI_Bridge.vhd`)
+### 4. Upward Telemetry Bridge Components (`Rx_To_Axi_Bridge.vhd`)
 Coordinates the real-time aggregation and uplink packaging of return status variables:
 *   **Input Strobe Synchronization Logic:** Evaluates low-to-high transition edges (`rx_pkt2_valid` and `rx_pkt2_valid_reg`) across incoming telemetry channels to securely trigger synchronous capture frames without data tearing.
 *   **Hardware Snapshot Register Banks:** Instantly freezes real-time analog parameters (including an SPI-driven AD7814 `Temp_sensor` block mapping structural temperatures) alongside system-wide physical health rails (`RFIF_FWD_PWR_STS`, `RFIF_TEMP_STS`).
@@ -58,13 +58,14 @@ Information streams through the ABCU core over two independent, concurrent proce
 1.  **GUI Assertion:** The operator configures target radar parameters (Azimuth, Elevation, Frequency) and toggles calibration states on the Qt dashboard. The GUI packs these variables into a raw payload and fires it over UDP.
 2.  **Ethernet Reception:** The Xilinx Ethernet block catches the packet and passes it to the MicroBlaze processor, which acts as the **Ethernet-to-UART Bridge**.
 3.  **Bridge Decoding:** The downward hardware bridge monitors the data over an AXI-Stream bus. An internal **8-state protocol FSM** parses frame boundaries, validates a framing identifier tag (`x"AAA1"`), isolates hardware control lines (`RFIF_CTRL_SW`), and decouples the parameters into a localized parallel matrix (`data_array`).
-4.  **Serialized Transmission:** Upon receiving an external Start of Beam trigger (`sob_in`), the transmit channels freeze current register snapshots in flip-flops and serialize the parameters into **two distinct 15-byte packets**:
-    *   *Packet 1 (OTRM Data):* Contains hardware configuration metrics marked by function code `x"0F"`.
-    *   *Packet 2 (Phase/Parameter Data):* Contains calculated phase gradients marked by function code `x"32"`.
-    A mandatory **50 µs delay hardware loop** is inserted between the two packets to prevent data overlapping at the destination Group Controller.
+4.  **Multi-Mode Serialized Transmission:** Upon receiving an external Start of Beam trigger (`sob_in`), the transmit channels freeze current register snapshots in flip-flops and parse the transmission sequence dynamically across separate 15-byte packet blocks based on the latched `mode_data_out` parameter:
+    *   *Packet 1 (All Modes):* Always transmits the core structural configuration block containing OTRM data parameters.
+    *   *Packet 2 (Normal / Dwell Mode - `x"01"`):* Transmits the active phase gradient template array (`Pa_LSB/MSB`, `Pb_LSB/MSB`) using function identifier `x"01"`.
+    *   *Packet 2 (Calibration Mode - `x"02"`):* Bypasses phase computations to transmit alternative hardware calibration alignment parameters marked by identifier code `x"02"`.
+    An automated **50 µs delay hardware loop** is maintained between Packet 1 and Packet 2 boundaries to avoid bus overlap states at the destination Group Controller.
 
 ### 2. Upward Telemetry Path (GC ➔ UART ➔ Ethernet ➔ GUI)
-1.  **Telemetry Sampling:** Returning serial streams from the 32 Group Controller modules are captured by the 200 MHz receiver block, checked against a CRC-8 polynomial, and written to storage.
+1.  **Discriminator Telemetry Sampling:** Returning serial streams from the 32 Group Controller modules are captured by the 200 MHz receiver block. An internal **Discriminator Routing Engine** parses incoming headers. If the structural function byte matches byte position **`temp_pkt(2) = x"14"`**, the data is routed into OTRM Packet 1 registers; if it matches **`temp_pkt(2) = x"01"`**, it maps directly into Phase/Parameter Packet 2 register channels, preserving data lane boundaries over the shared physical line before executing CRC-8 checks.
 2.  **Telemetry Bridging:** The upward bridge block aggregates valid receiver signals, snapshots real-time analog parameters (including an SPI-driven AD7814 temperature sensor running over a 1 MHz clock), and generates a 7-word burst stream.
 3.  **Ethernet Upload:** The AXI DMA engine triggers a simple transfer, moving the telemetry burst into memory. The embedded server encapsulates this 29-byte frame block into a structured UDP packet and transmits it back to the ground PC to update the Message Monitor dashboard in real-time.
 
@@ -77,13 +78,13 @@ The operational stack maps across three separate firmware and software applicati
 ### 1. Bootloader Application (`bootloader.c`)
 Resides in primary non-volatile Quad-SPI (QSPI) Flash memory. Upon a power-on-reset (POR) or hardware reset condition, it mounts the SPI flash lines, locates the SREC image starting at flash base address `0x01000000`, copies the binary application sections into DDR3 RAM, and branches execution to the main application address.
 
-### 2. Ethernet Application (`echo.c` / `main.c`)
+### 2. Ethernet Application (`telemetry_server.c` / `main.c`)
 An embedded standalone application executing on the MicroBlaze processor core utilizing the **lwIP (Lightweight IP) protocol stack**. It establishes network interface bindings, mounts raw UDP PCBs, and loops indefinitely to monitor `xemacif_input()` network lines while checking `transfer_data()` hooks to handle DMA transfers.
 
 ### 3. Qt Graphical User Interface Dashboard
 A cross-platform desktop control dashboard designed in C++ utilizing Qt5 frameworks. 
 *   **Main Interface Thread:** Manages the graphical panels, maps parameter choices to hex strings, and calculates spatial phase equations (\(P_a\), \(P_b\)).
-*   **Worker Thread Interface:** Implements an asynchronous worker block (`receive.cpp`) moved onto an independent `QThread`. This thread processes low-level socket connections, prevents interface stuttering during peak telemetry loads, and transmits command buffers down to the ABCU network.
+*   **Worker Thread Interface:** Implements an asynchronous worker block (`receive.cpp`) moved onto an independent `QThread`. This thread processes low-level socket connections, intercepts incoming packets, extracts exactly 29-byte telemetry segments via a dedicated buffer mask (`Datagram.left(29)`), and transmits thread-stable data buffers up to the UI layout.
 
 ---
 
