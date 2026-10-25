@@ -122,168 +122,146 @@ signal state : state_type := INIT_STABILIZE;
  begin
  
      -- Keep m_axis_tready open and tracking bridge_ready continuously as specified
- m_axis_tready <= bridge_ready;
-
- process(clk)
-     variable v_gc_idx : integer range 0 to 31 := 0;
- begin
-     if reset = '0' then
-         state          <= INIT_STABILIZE;
-         word_counter   <= 0; startup_timer  <= 0; bridge_ready   <= '0'; rfif_ctrl_reg  <= '0';
-         main_red       <= (others => '0'); p_mode <= (others => '0');
-         p_azimuth      <= (others => '0'); p_elevation <= (others => '0'); p_frequency <= (others => '0');
-         saved_word_b   <= (others => '0'); active_gc_id   <= 0;
-         reg_otrm01     <= (others => (others => '0')); reg_otrm23     <= (others => (others => '0'));
-         reg_otrm45     <= (others => (others => '0')); reg_otrm67     <= (others => (others => '0'));
-         reg_otrm89     <= (others => (others => '0')); reg_otrm1011   <= (others => (others => '0'));
-         reg_otrm1213   <= (others => (others => '0')); reg_otrm1415   <= (others => (others => '0'));
-         history_Pa     <= (others => '0'); history_Pb     <= (others => '0');
-         session_locked <= '0';
-         rfif_cal_reg   <= '0'; -- Initialize calibration registration signal
-         
-     elsif rising_edge(clk) then
-         if startup_timer < 100 then
-             startup_timer <= startup_timer + 1; bridge_ready  <= '0'; state <= INIT_STABILIZE;
-         else
-             bridge_ready  <= '1';
-             if state = INIT_STABILIZE then state <= CAPTURE_HEADER; word_counter <= 0; end if;
-         end if;
-
-         if bridge_ready = '1' and m_axis_tvalid = '1' then
-             case state is
-                 when INIT_STABILIZE =>
-                     state        <= CAPTURE_HEADER; word_counter <= 0;
-
-                 when CAPTURE_HEADER =>
-                     -- 100% LIVE DATA CAPTURE MUX RAIL
-                     if word_counter <= 9 then
-                         null;
-                         
-                     elsif word_counter = 10 then
-                         -- IDENTIFIER CHECK: Looks for 'aaa1' in hex (16 bits)
-                         if (m_axis_tdata(31 downto 16) = x"AAA1") then
-                             session_locked <= '1'; -- Frame is valid, lock session
+  m_axis_tready <= bridge_ready;
+    
+     process(clk)
+         variable v_gc_idx : integer range 0 to 31 := 0;
+     begin
+         if reset = '0' then
+             state          <= INIT_STABILIZE;
+             word_counter   <= 0; startup_timer  <= 0; bridge_ready   <= '0'; rfif_ctrl_reg  <= '0';
+             main_red       <= (others => '0'); p_mode <= (others => '0');
+             p_azimuth      <= (others => '0'); p_elevation <= (others => '0'); p_frequency <= (others => '0');
+             saved_word_b   <= (others => '0'); active_gc_id   <= 0;
+             reg_otrm01     <= (others => (others => '0')); reg_otrm23     <= (others => (others => '0'));
+             reg_otrm45     <= (others => (others => '0')); reg_otrm67     <= (others => (others => '0'));
+             reg_otrm89     <= (others => (others => '0')); reg_otrm1011   <= (others => (others => '0'));
+             reg_otrm1213   <= (others => (others => '0')); reg_otrm1415   <= (others => (others => '0'));
+             history_Pa     <= (others => '0'); history_Pb     <= (others => '0');
+             session_locked <= '0';
+             rfif_cal_reg   <= '0'; 
+             
+         elsif rising_edge(clk) then
+             if startup_timer < 100 then
+                 startup_timer <= startup_timer + 1; bridge_ready  <= '0'; state <= INIT_STABILIZE;
+             else
+                 bridge_ready  <= '1';
+                 if state = INIT_STABILIZE then state <= CAPTURE_HEADER; word_counter <= 0; end if;
+             end if;
+    
+             if bridge_ready = '1' and m_axis_tvalid = '1' then
+                 case state is
+                     when INIT_STABILIZE =>
+                         state        <= CAPTURE_HEADER; word_counter <= 0;
+    
+                     when CAPTURE_HEADER =>
+                         -- Catch early TLAST if a short control packet terminates early
+                         if m_axis_tlast = '1' then
+                             state        <= CAPTURE_HEADER;
+                             word_counter <= 0;
                          else
-                             session_locked <= '0'; 
-                         end if;
-                     
-                     elsif word_counter = 11 then
-                         -- Directly grab data fields now that mode checks are removed
-                         if session_locked = '1' then
-                             main_red <= m_axis_tdata(31 downto 24);
-                             p_mode   <= m_axis_tdata(23 downto 16);
+                             if word_counter <= 9 then
+                                 null;
+                                 
+                             elsif word_counter = 10 then
+                                 -- IDENTIFIER CHECK
+                                 if (m_axis_tdata(31 downto 16) = x"AAA1") then
+                                     session_locked <= '1'; 
+                                 else
+                                     session_locked <= '0'; 
+                                 end if;
                              
-                             if (m_axis_tdata(31 downto 24) = x"01") then 
-                                 rfif_ctrl_reg <= '1';
+                             elsif word_counter = 11 then
+                                 if session_locked = '1' then
+                                     main_red <= m_axis_tdata(31 downto 24);
+                                     p_mode   <= m_axis_tdata(23 downto 16);
+                                     
+                                     
+                                     
+                                     if (m_axis_tdata(31 downto 24) = x"01") then 
+                                         rfif_ctrl_reg <= '1';
+                                     else
+                                         rfif_ctrl_reg <= '0';
+                                     end if;
+                                 end if;
+    
+                             elsif word_counter = 12 then
+                                 if session_locked = '1' then 
+                                     history_Pa <= m_axis_tdata; 
+                                 end if;
+                             
+                             elsif word_counter = 13 then
+                                 if session_locked = '1' then 
+                                     history_Pb <= m_axis_tdata; 
+                                 end if;
+                                 
+                             elsif word_counter = 14 then
+                                 if session_locked = '1' then 
+                                     p_frequency <= m_axis_tdata; 
+                                     p_azimuth   <= history_Pa;
+                                     p_elevation <= history_Pb;
+                                 end if;
+                             end if;
+    
+                             -- Word iteration sequencing logic
+                             if word_counter < 14 then
+                                 word_counter <= word_counter + 1;
                              else
-                                 rfif_ctrl_reg <= '0';
+                                 word_counter <= 0; 
+                                 state        <= GC_WORD_A; -- FIXED: Go to data states unconditionally so OTRM data always processes!
                              end if;
                          end if;
-
-                     elsif word_counter = 12 then
-                         if session_locked = '1' then 
-                             history_Pa <= m_axis_tdata; 
+    
+                     when GC_WORD_A =>
+                         active_gc_id <= to_integer(unsigned(m_axis_tdata(7 downto 0)));
+                         
+                         if m_axis_tlast = '1' then 
+                             state          <= CAPTURE_HEADER; 
+                             word_counter   <= 0; 
+                         else 
+                             state          <= GC_WORD_B; 
                          end if;
-                     
-                     elsif word_counter = 13 then
-                         if session_locked = '1' then 
-                             history_Pb <= m_axis_tdata; 
+    
+                     when GC_WORD_B =>
+                         saved_word_b <= m_axis_tdata;
+                         
+                         if m_axis_tlast = '1' then 
+                             state          <= CAPTURE_HEADER; 
+                             word_counter   <= 0; 
+                         else 
+                             state          <= GC_WORD_C; 
+                         end if;
+    
+                     when GC_WORD_C =>
+                         if active_gc_id >= 1 and active_gc_id <= 32 then
+                             v_gc_idx := active_gc_id - 1; 
+                             reg_otrm01(v_gc_idx)   <= saved_word_b(7 downto 0);     
+                             reg_otrm23(v_gc_idx)   <= saved_word_b(15 downto 8);
+                             reg_otrm45(v_gc_idx)   <= saved_word_b(23 downto 16);    
+                             reg_otrm67(v_gc_idx)   <= saved_word_b(31 downto 24);
+                             reg_otrm89(v_gc_idx)   <= m_axis_tdata(7 downto 0);     
+                             reg_otrm1011(v_gc_idx) <= m_axis_tdata(15 downto 8);
+                             reg_otrm1213(v_gc_idx) <= m_axis_tdata(23 downto 16);    
+                             reg_otrm1415(v_gc_idx) <= m_axis_tdata(31 downto 24);
                          end if;
                          
-                     elsif word_counter = 14 then
-                         if session_locked = '1' then 
-                             p_frequency <= m_axis_tdata; 
-                             
-                             -- ATOMIC INTERLOCK LATCH
-                             p_azimuth   <= history_Pa;
-                             p_elevation <= history_Pb;
+                         if m_axis_tlast = '1' then 
+                             state          <= CAPTURE_HEADER;  
+                             word_counter   <= 0; 
+                         else 
+                             state          <= GC_WORD_A; 
                          end if;
-                     end if;
-
-                     -- Sequential evaluation tracking of header words
-                     if word_counter < 14 then
-                         word_counter <= word_counter + 1;
-                     else
-                         word_counter <= 0; 
-                         state        <= GC_WORD_A;
-                     end if;
-
-                 when GC_WORD_A =>
-                     active_gc_id <= to_integer(unsigned(m_axis_tdata(7 downto 0)));
-                     
-                     if m_axis_tlast = '1' then 
-                         -- GUI calibration status extraction firewall on premature TLAST
-                         if m_axis_tdata(7 downto 0) = x"01" then
-                             rfif_cal_reg <= '1';
-                         elsif m_axis_tdata(7 downto 0) = x"00" then
-                             rfif_cal_reg <= '0';
-                         end if;
-
+    
+                     when others => 
                          state          <= CAPTURE_HEADER; 
-                         word_counter   <= 0; 
-                         session_locked <= '0'; 
-                     else 
-                         state          <= GC_WORD_B; 
-                     end if;
-
-                 when GC_WORD_B =>
-                     saved_word_b <= m_axis_tdata;
-                     
-                     if m_axis_tlast = '1' then 
-                         -- GUI calibration status extraction firewall on premature TLAST
-                         if m_axis_tdata(7 downto 0) = x"01" then
-                             rfif_cal_reg <= '1';
-                         elsif m_axis_tdata(7 downto 0) = x"00" then
-                             rfif_cal_reg <= '0';
-                         end if;
-
-                         state          <= CAPTURE_HEADER; 
-                         word_counter   <= 0; 
-                         session_locked <= '0'; 
-                     else 
-                         state          <= GC_WORD_C; 
-                     end if;
-
-                 when GC_WORD_C =>
-                     -- Matrix data payload routing protected by the session lock validation status
-                     if active_gc_id >= 1 and active_gc_id <= 32 and session_locked = '1' then
-                         v_gc_idx := active_gc_id - 1; 
-                         reg_otrm01(v_gc_idx)   <= saved_word_b(7 downto 0);     
-                         reg_otrm23(v_gc_idx)   <= saved_word_b(15 downto 8);
-                         reg_otrm45(v_gc_idx)   <= saved_word_b(23 downto 16);    
-                         reg_otrm67(v_gc_idx)   <= saved_word_b(31 downto 24);
-                         reg_otrm89(v_gc_idx)   <= m_axis_tdata(7 downto 0);     
-                         reg_otrm1011(v_gc_idx) <= m_axis_tdata(15 downto 8);
-                         reg_otrm1213(v_gc_idx) <= m_axis_tdata(23 downto 16);    
-                         reg_otrm1415(v_gc_idx) <= m_axis_tdata(31 downto 24);
-                     end if;
-                     
-                     if m_axis_tlast = '1' then 
-                         -- GUI EXTRACTOR FOR LAST DATA CYCLE
-                         -- Checks the lowest byte of the final AXI-Stream payload word
-                         if m_axis_tdata(7 downto 0) = x"01" then
-                             rfif_cal_reg <= '1';
-                         elsif m_axis_tdata(7 downto 0) = x"00" then
-                             rfif_cal_reg <= '0';
-                         end if;
-
-                         state          <= CAPTURE_HEADER; 
-                         word_counter   <= 0; 
-                         session_locked <= '0'; 
-                     else 
-                         state          <= GC_WORD_A; 
-                     end if;
-
-                 when others => 
-                     state          <= CAPTURE_HEADER; 
-                     word_counter   <= 0;
-                     session_locked <= '0';
-             end case;
+                         word_counter   <= 0;
+                 end case;
+             end if;
          end if;
-     end if;
- end process;
- 
-  RFIF_CAL_IN <= rfif_cal_reg;
+     end process;
+     
+     RFIF_CAL_IN <= rfif_cal_reg;
+
 
 
  RFIF_CTRL_SW <= rfif_ctrl_reg; main_red_data <= main_red; mode_data <= p_mode; azimuth_fp32 <= p_azimuth; elevation_fp32 <= p_elevation;
