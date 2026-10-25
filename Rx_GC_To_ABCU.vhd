@@ -109,12 +109,12 @@ begin
                         byte_cntrx <= byte_cntrx + 1;
                         
                         -- --- CRITICAL DISCRIMINATOR ROUTING ENGINE ---
-                        if temp_pkt(1) = x"0F" then
+                        if temp_pkt(2) = x"14" then
                             -- Securely map payload data into Packet 1 Registers
                             reg_pkt1 <= temp_pkt;
                             pkt1_valid_pulse <= '1'; -- Safely alerts upward bridge
                             
-                        elsif temp_pkt(1) = x"32" then
+                        elsif temp_pkt(2) = x"01" then
                             -- Securely map payload data into Packet 2 Registers
                             reg_pkt2 <= temp_pkt;
                             pkt2_valid_pulse <= '1'; -- Safely alerts upward bridge
