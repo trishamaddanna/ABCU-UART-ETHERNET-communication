@@ -70,6 +70,7 @@ architecture Structural of Top_system is
     signal local_Pa_MSB     : std_logic_vector(7 downto 0);
     signal local_Pb_LSB     : std_logic_vector(7 downto 0);
     signal local_Pb_MSB     : std_logic_vector(7 downto 0);
+    signal local_mode_data  : std_logic_vector(7 downto 0);
     
     signal ch32_otrm01      : data_array;
     signal ch32_otrm23      : data_array;
@@ -88,7 +89,7 @@ begin
             clk             => clk_10, reset => reset,
             m_axis_tdata    => s_axis_tdata, m_axis_tvalid => s_axis_tvalid,
             m_axis_tready   => s_axis_tready, m_axis_tlast => s_axis_tlast,
-            mode_data       => mode_data_out, main_red_data => main_red_out,
+            mode_data       => local_mode_data, main_red_data => main_red_out,
             azimuth_fp32    => open, elevation_fp32 => open,
             freq1 => open, freq2 => open, freq3 => open, freq4 => open,
             RFIF_CTRL_SW    => RFIF_CTRL_SW, RFIF_CAL_IN => RFIF_CAL_IN, 
@@ -107,7 +108,7 @@ begin
         port map (
             clk_10 => clk_10, reset => reset, channel_id => 1, 
             tx_out => TX_OUT_32(0), tx_done => open, sob_in => sob_in, 
-            curr_byte_out => tx_data_32(0),
+            curr_byte_out => tx_data_32(0), mode_data_out       => local_mode_data, 
             OTRM01 => ch32_otrm01(0), OTRM23 => ch32_otrm23(0), OTRM45 => ch32_otrm45(0), OTRM67 => ch32_otrm67(0),
             OTRM89 => ch32_otrm89(0), OTRM1011 => ch32_otrm1011(0), OTRM1213 => ch32_otrm1213(0), OTRM1415 => ch32_otrm1415(0),
             Pa_LSB1 => local_Pa_LSB, Pa_MSB1 => local_Pa_MSB, Pb_LSB1 => local_Pb_LSB, Pb_MSB1 => local_Pb_MSB
@@ -130,7 +131,7 @@ begin
         port map (
             clk_10 => clk_10, reset => reset, channel_id => 9, 
             tx_out => TX_OUT_32(8), tx_done => open, sob_in => sob_in, 
-            curr_byte_out => tx_data_32(8),
+            curr_byte_out => tx_data_32(8), mode_data_out       => local_mode_data,
             OTRM01 => ch32_otrm01(8), OTRM23 => ch32_otrm23(8), OTRM45 => ch32_otrm45(8), OTRM67 => ch32_otrm67(8),
             OTRM89 => ch32_otrm89(8), OTRM1011 => ch32_otrm1011(8), OTRM1213 => ch32_otrm1213(8), OTRM1415 => ch32_otrm1415(8),
             Pa_LSB1 => local_Pa_LSB, Pa_MSB1 => local_Pa_MSB, Pb_LSB1 => local_Pb_LSB, Pb_MSB1 => local_Pb_MSB
@@ -196,7 +197,7 @@ begin
         GEN_SKIP_CH9: if i /= 8 generate
             TX_INST: entity work.Tx_Channel
                 port map (
-                    clk_10 => clk_10, reset => reset, channel_id => (i + 1),
+                    clk_10 => clk_10, reset => reset, channel_id => (i + 1),  mode_data_out       => local_mode_data,
                     tx_out => TX_OUT_32(i), tx_done => open, sob_in => sob_in, curr_byte_out => tx_data_32(i),
                     OTRM01 => ch32_otrm01(i), OTRM23 => ch32_otrm23(i), OTRM45 => ch32_otrm45(i), OTRM67 => ch32_otrm67(i),
                     OTRM89 => ch32_otrm89(i), OTRM1011 => ch32_otrm1011(i), OTRM1213 => ch32_otrm1213(i), OTRM1415 => ch32_otrm1415(i),
@@ -212,4 +213,6 @@ begin
                 );
         end generate;
     end generate;
+    mode_data_out <= local_mode_data; 
+
 end Structural;
