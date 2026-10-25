@@ -126,6 +126,7 @@ Because the core RTL blocks contain sensitive aerospace IP, this repository cata
 ### 📜 Protocol Frame Structures & Message Formats
 *   `otrm_power_pkt.png` — Structural byte map mapping the 15-byte **Power Control Packet** layout, showcasing bit toggling allocations per OTRM element and the multi-state power definitions (Default, Power_on, Power_off).
 *   `dwell_phase_pkt.png` — Architectural reference layout defining the 15-byte **Dwell Mode Message Format**, outlining the explicit positioning of phase gradients (\(P_A, P_B\)), frequency IDs, and array table designations.
+*   `calibration_pkt.png` — Architectural reference layout defining the 15-byte **Calibration Mode Message Format**, outlining the phase and attenuation coeffiecients, frequency IDs, and array table designations.
 
 ### 📊 Real-Time Hardware Logic Waveforms
 *   `txrx_waveform_calibpkt.png` — Single-channel handshake timing trace verifying exact transaction-level byte execution (`ac 0f 02`) during an active Calibration Mode command sweep, physical `SDO`/`SDI` LVDS pins, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
