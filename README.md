@@ -1,53 +1,53 @@
 # Antenna Beam Control Unit (ABCU) Communication Core
 
-**Description:** High-speed SoC and FPGA communications subsystem for an airborne Antenna Beam Control Unit (ABCU). Bridges a MicroBlaze 1G Ethernet topology with a custom 32-channel asynchronous UART-over-LVDS matrix interface.
+**Description:** FPGA-based bidirectional communication subsystem for an Antenna Beam Control Unit (ABCU). Integrates a MicroBlaze-based 1G Ethernet interface with 32-channel UART-over-LVDS transmit and receive networks for communication with 32 Group Controllers (GCs).
 
 ---
 
-A safety-critical, high-speed **SoC and FPGA-based communications subsystem** for an airborne **Antenna Beam Control Unit (ABCU)**. Modeled and synthesized using **Xilinx Vivado**, this architecture establishes a bidirectional data gateway bridging a **MicroBlaze-based 1G Ethernet infrastructure** with a custom **32-channel high-speed UART over Low-Voltage Differential Signaling (LVDS)** interface. 
+Developed and synthesized using **Xilinx Vivado**, the architecture establishes a bidirectional data gateway between a **MicroBlaze-based 1G Ethernet infrastructure** and custom **32-channel UART-over-LVDS transmit and receive interfaces**.
 
-The core facilitates high-speed board-to-board control and telemetry distribution between an **Artix-7-based 8-channel ABCU** module and a centralized **Virtex-7-based 32-channel Group Controller (GC)** system.
+The Artix-7-based ABCU provides **32 transmit and 32 receive channels**, distributed across eight physical connectors, each carrying four TX and four RX channel connections. These interfaces connect to **32 Virtex-7-based Group Controllers (GCs)**, with each GC interfacing with 16 OTRMs. The subsystem supports command distribution, OTRM power control, operational mode configuration, and telemetry collection.
 
 ---
 
 ## 🛠️ Toolchain Infrastructure & Verification Environment
 
-To meet stringent reliability and safety requirements, professional, industry-standard electronic design automation (EDA) tools were utilized throughout the development and validation lifecycle:
+The development and validation process used the following EDA and software tools:
 
-*   **FPGA Synthesis & Block Design:** Developed inside **Xilinx Vivado System Edition** targeting a unified hardware netlist on Artix-7 and Virtex-7 architectures. It leverages custom VHDL modules alongside Xilinx IP integrator cores hooked onto an AXI4 interconnect fabric.
-*   **Embedded Software Development:** Programmed within the **Xilinx Software Development Kit (XSDK) / Vitis** to compile the C-based standalone Ethernet stacks and network bridge management applications executing on the MicroBlaze soft processor core.
-*   **Graphical User Interface (GUI) App:** Developed using **Qt Creator (C++ / Qt5)** to design an asynchronous multi-threaded system control dashboard. The GUI features a dedicated worker thread (`receive.cpp`) managing raw UDP sockets to prevent interface freezes during high-volume telemetry processing.
-*   **Hardware-in-the-Loop Emulation:** Validated using the **Xilinx Vivado Hardware Manager Integrated Logic Analyzer (ILA)** to capture live bus handshakes and temperature telemetry profiles without signal optimization loss.
-
+*   **FPGA Synthesis & Block Design:** Developed using **Xilinx Vivado System Edition** targeting the Artix-7-based ABCU and Virtex-7-based Group Controllers. The design combines custom VHDL modules with Xilinx IP Integrator components interconnected through an AXI4-based infrastructure.
+*   **Embedded Software Development:** Programmed within the **Xilinx Software Development Kit (XSDK)** to compile the C-based standalone Ethernet stacks and network bridge management applications executing on the MicroBlaze soft processor core.
+*   **Graphical User Interface (GUI) App:** Developed using **Qt Creator (C++ / Qt5)** to design an asynchronous multi-threaded system control dashboard. The GUI features a dedicated worker thread (`receive.cpp`) managing UDP sockets to prevent interface freezes during high-volume telemetry processing.
+* **Hardware Debugging and Validation:** Used **Xilinx Vivado Hardware Manager and Integrated Logic Analyzer (ILA)** to capture and analyze internal FPGA signals, AXI bus handshakes, communication transactions, and temperature telemetry during hardware validation.
+  
 ---
 
 ## 📐 System Architecture & Hardware Components
 
-The system functions simultaneously as an Ethernet-to-UART bridge, splitting communication and processing logic across independent specialized subsystems:
+The system operates as a bidirectional Ethernet-to-UART communication bridge, with command transmission and telemetry reception handled by dedicated hardware and software subsystems.
 
 ### 1. MicroBlaze Ethernet Subsystem Components
 The Ethernet communications hub is constructed by interfacing dedicated soft IP components with external memory modules over the system crossbar fabric:
-*   **Xilinx AXI 1G/2.5G Ethernet Core:** Automatically manages physical layer RGMII signaling states and extracts structured TCP/IP or UDP command packets from the raw network line.
-*   **AXI DMA Engine:** Configured in standard Simple Transfer mode to bypass software overhead. The DMA automates direct scatter-gather-free memory copies, dumping captured Ethernet payloads or telemetry streams into dedicated DDR3 address spaces.
-*   **MicroBlaze Soft Core Processor:** Serves as the primary system controller. It arbitrates communication boundaries, executes network stack protocols, and hosts the application tracking state matrices.
-
+*   **Xilinx AXI 1G Ethernet Core:** Provides the Ethernet interface through RGMII and transfers received network frames to the MicroBlaze-based embedded system for UDP packet processing.
+*   **AXI DMA Engine:** Transfers data between AXI streaming interfaces and DDR3 memory using Simple Transfer mode.
+*   **MicroBlaze Soft Core Processor:** Executes the embedded lwIP network stack, processes incoming GUI commands, and manages communication between the Ethernet subsystem and FPGA-based UART interfaces.
+  
 ### 2. Data Synchronizer Components (`AXI_To_Tx_Bridge.vhd`)
-Acts as the downward command parsing buffer that transitions data between high-frequency processor buses and physical output pins:
-*   **AXI-Stream Interface Bus:** Latches 32-bit streaming data blocks directly from the processor's memory queues.
-*   **8-State Protocol FSM:** Runs through an algorithmic tracking loop (`INIT_STABILIZE` → `CAPTURE_HEADER` → `GC_WORD_A` → `GC_WORD_B` → `GC_WORD_C`) to parse multi-byte header boundaries. It actively checks for early stream terminations (`m_axis_tlast = '1'`), locks valid frames on an identifier tag (`x"AAA1"`), isolates hardware control switches (`RFIF_CTRL_SW`), and transitions directly to data processing states unconditionally upon header validation to guarantee continuous OTRM updates.
-*   **Array Payload Demultiplexer:** Splits the 32-bit streaming data back into multi-channel parallel structures (`data_array`) distributing specialized command vectors to individual channel modules.
+Implements the downward command-processing interface, transferring decoded command data from the AXI-Stream interface to the transmit-channel logic.
+*   **AXI-Stream Interface:** Receives and captures 32-bit streaming data words from the processor-side AXI data path.
+*   **Protocol Parsing FSM:** Implements an FSM to capture AXI-Stream data, identify packet boundaries, validate the header (x"AAA1"), decode control information, and extract command payloads. It also monitors m_axis_tlast to handle stream termination.
+*   **Array Payload Demultiplexer:** Distributes decoded command data into parallel channel structures (data_array) for subsequent processing by the transmit modules.
 
 ### 3. VHDL UART Components over LVDS
-The serialization network bypasses traditional processor bottlenecks by implementing parallel hardware modules mapped directly onto Low-Voltage Differential Signaling pairs:
-*   **32-Channel Transmit Network (`Tx_Channel.vhd`):** Spans 32 parallel transmit channels operating on a synchronous low-frequency clock domain (f = 10 MHz). Features a mid-sampling data collection architecture that compiles three independent physical packet structures (`pkt_otrm_data`, `pkt_phase_data`, and `pkt_mode02_data`). It uses a dynamic mode tracking port (`mode_data_out`) to conditionally branch output streams on the second packet window based on the active GUI layout command.
-*   **32-Channel Receive Network (`Rx_GC_To_ABCU.vhd`):** Spans 32 parallel receive channels operating on a high-speed clock domain (f = 200 MHz). It uses an oversampling majority-voting architecture to accurately capture in-sync bytes over noisy differential physical lines.
-
+Implements 32 parallel UART transmit channels and 32 parallel UART receive channels over LVDS physical interfaces, enabling simultaneous communication with the 32 Group Controllers.
+**Physical Interface:** The ABCU exposes eight physical connectors, each carrying four TX and four RX channel connections. These connectors provide the LVDS communication interfaces to the 32 Group Controllers.
+*   **32-Channel Transmit Network (`Tx_Channel.vhd`):** Implements 32 parallel UART transmit channels operating with a 10 MHz TX clock and a 10 Mbps UART bit rate. Supports OTRM power-control, normal/dwell, and calibration packet structures (pkt_otrm_data, pkt_phase_data, and pkt_mode02_data). The mode tracking signal (mode_data_out) selects the appropriate packet for transmission.
+*   **32-Channel Receive Network (`Rx_GC_To_ABCU.vhd`):** Implements 32 parallel UART receive channels using a 200 MHz sampling clock to receive 10 Mbps serial data. Each UART bit period is sampled 20 times. The receiver evaluates the central samples (samples 5–15, inclusive) using majority voting to determine the received logic level, improving noise tolerance during LVDS communication.
+  
 ### 4. Upward Telemetry Bridge Components (`Rx_To_Axi_Bridge.vhd`)
 Coordinates the real-time aggregation and uplink packaging of return status variables:
-*   **Input Strobe Synchronization Logic:** Evaluates low-to-high transition edges (`rx_pkt2_valid` and `rx_pkt2_valid_reg`) across incoming telemetry channels to securely trigger synchronous capture frames without data tearing.
-*   **Hardware Snapshot Register Banks:** Instantly freezes real-time analog parameters (including an SPI-driven AD7814 `Temp_sensor` block mapping structural temperatures) alongside system-wide physical health rails (`RFIF_FWD_PWR_STS`, `RFIF_TEMP_STS`).
-*   **AXI-Stream Master Assembler:** Bundles the frozen parameter registers into an upstream 7-Word AXI-Stream data frame, triggering active `m_axis_tvalid` flags to route the diagnostic data directly back through the Ethernet subsystem.
-
+*   **Input Strobe Synchronization Logic:** Detects valid-data transitions using rx_pkt2_valid and rx_pkt2_valid_reg to trigger synchronous telemetry capture.
+*   **Hardware Snapshot Register Banks:** Capture temperature measurements from the SPI-driven AD7814 Temp_sensor block, together with system-status signals such as RFIF_FWD_PWR_STS and RFIF_TEMP_STS.
+*   **AXI-Stream Master Assembler:** Organizes the captured telemetry and status registers into a 7-word AXI-Stream data frame and asserts m_axis_tvalid to transfer the data to the Ethernet subsystem.
 ---
 
 ## ⚡ Bidirectional Communication Flow Mechanics
@@ -55,18 +55,22 @@ Coordinates the real-time aggregation and uplink packaging of return status vari
 Information streams through the ABCU core over two independent, concurrent processing pipelines:
 
 ### 1. Downward Control Path (GUI ➔ Ethernet ➔ UART ➔ GC)
-1.  **GUI Assertion:** The operator configures target radar parameters (Azimuth, Elevation, Frequency) and toggles calibration states on the Qt dashboard. The GUI packs these variables into a raw payload and fires it over UDP.
-2.  **Ethernet Reception:** The Xilinx Ethernet block catches the packet and passes it to the MicroBlaze processor, which acts as the **Ethernet-to-UART Bridge**.
-3.  **Bridge Decoding:** The downward hardware bridge monitors the data over an AXI-Stream bus. An internal **8-state protocol FSM** parses frame boundaries, validates a framing identifier tag (`x"AAA1"`), isolates hardware control lines (`RFIF_CTRL_SW`), and decouples the parameters into a localized parallel matrix (`data_array`).
-4.  **Multi-Mode Serialized Transmission:** Upon receiving an external Start of Beam trigger (`sob_in`), the transmit channels freeze current register snapshots in flip-flops and parse the transmission sequence dynamically across separate 15-byte packet blocks based on the latched `mode_data_out` parameter:
-    *   *Packet 1 (All Modes):* Always transmits the core structural configuration block containing OTRM data parameters.
-    *   *Packet 2 (Normal / Dwell Mode - `x"01"`):* Transmits the active phase gradient template array (`Pa_LSB/MSB`, `Pb_LSB/MSB`) using function identifier `x"01"`.
-    *   *Packet 2 (Calibration Mode - `x"02"`):* Bypasses phase computations to transmit alternative hardware calibration alignment parameters marked by identifier code `x"02"`.
-    An automated **50 µs delay hardware loop** is maintained between Packet 1 and Packet 2 boundaries to avoid bus overlap states at the destination Group Controller.
+1.  **GUI Assertion:** The operator configures target radar parameters (Azimuth, Elevation, Frequency) and toggles calibration states on the Qt dashboard. The GUI packs these variables into a raw payload and transmits it over UDP.
+2.  **Ethernet Reception:** The Xilinx Ethernet block receives the packet and passes it to the MicroBlaze processor, which acts as the **Ethernet-to-UART Bridge**.
+3.  **Bridge Decoding:** The downward hardware bridge receives data over an AXI-Stream interface. Its protocol parsing FSM identifies packet boundaries, validates the framing identifier (x"AAA1"), extracts hardware control information (RFIF_CTRL_SW), and distributes the decoded parameters into parallel channel structures (data_array).
+4.  **Multi-Mode Packet Transmission:** Upon receiving the external Start of Beam trigger (sob_in), the transmit channels capture the required register values and serialize the command packets according to the selected operating mode. The communication sequence supports the following packet types:
+    *   *OTRM Power Control Packet:* Transmits power-on and power-off commands for individual OTRM elements using the 15-byte power-control packet format.
+    *   *Normal/Dwell Mode Packet (x"01"):* Transmits the phase-gradient parameters (Pa_LSB/MSB, Pb_LSB/MSB) required for normal and dwell operation.
+    *   *Calibration Mode Packet (x"02"):* Transmits calibration alignment parameters using the corresponding function identifier.
+    *   *Packet Timing:* Implements a hardware-controlled 50 µs interval between applicable packet transmissions to maintain the required communication timing.
 
 ### 2. Upward Telemetry Path (GC ➔ UART ➔ Ethernet ➔ GUI)
-1.  **Discriminator Telemetry Sampling:** Returning serial streams from the 32 Group Controller modules are captured by the 200 MHz receiver block. An internal **Discriminator Routing Engine** parses incoming headers. If the structural function byte matches byte position **`temp_pkt(2) = x"14"`**, the data is routed into OTRM Packet 1 registers; if it matches **`temp_pkt(2) = x"01"`**, it maps directly into Phase/Parameter Packet 2 register channels, preserving data lane boundaries over the shared physical line before executing CRC-8 checks.
-2.  **Telemetry Bridging:** The upward bridge block aggregates valid receiver signals, snapshots real-time analog parameters (including an SPI-driven AD7814 temperature sensor running over a 1 MHz clock), and generates a 7-word burst stream.
+1. **Header-Based Packet Classification:** Incoming serial data from the 32 Group Controllers is captured by the 200 MHz receiver logic. The received packet headers are decoded to identify packet types based on their function identifiers:
+   - **OTRM Packet** (`temp_pkt(2) = x"14"`): Routes received OTRM status data to the OTRM Packet 1 registers.
+   - **Normal/Dwell Packet** (`temp_pkt(2) = x"01"`): Routes received phase and parameter data to the Phase/Parameter Packet 2 registers.
+   - **Calibration Packet** (`temp_pkt(2) = x"02"`): Identifies and routes received calibration-related data to the corresponding calibration registers.
+   CRC-8 validation is performed on received packets before accepting the corresponding data.
+2.  **Telemetry Bridging:** The upward bridge block aggregates valid receiver signals, snapshots real-time telemetry and status parameters (including an SPI-driven AD7814 temperature sensor running over a 1 MHz clock), and generates a 7-word burst stream.
 3.  **Ethernet Upload:** The AXI DMA engine triggers a simple transfer, moving the telemetry burst into memory. The embedded server encapsulates this 29-byte frame block into a structured UDP packet and transmits it back to the ground PC to update the Message Monitor dashboard in real-time.
 
 ---
@@ -76,15 +80,15 @@ Information streams through the ABCU core over two independent, concurrent proce
 The operational stack maps across three separate firmware and software application layers:
 
 ### 1. Bootloader Application (`bootloader.c`)
-Resides in primary non-volatile Quad-SPI (QSPI) Flash memory. Upon a power-on-reset (POR) or hardware reset condition, it mounts the SPI flash lines, locates the SREC image starting at flash base address `0x01000000`, copies the binary application sections into DDR3 RAM, and branches execution to the main application address.
+Resides in primary non-volatile Quad-SPI (QSPI) Flash memory. Upon a power-on-reset (POR) or hardware reset condition, it initializes the QSPI Flash interface, locates the SREC image starting at flash base address `0x01000000`, copies the binary application sections into DDR3 RAM, and transfers execution to the loaded application.
 
 ### 2. Ethernet Application (`echo.c` / `main.c`)
-An embedded standalone application executing on the MicroBlaze processor core utilizing the **lwIP (Lightweight IP) protocol stack**. It establishes network interface bindings, mounts raw UDP PCBs, and loops indefinitely to monitor `xemacif_input()` network lines while checking `transfer_data()` hooks to handle DMA transfers.
+An embedded standalone application executing on the MicroBlaze processor core using the **lwIP (Lightweight IP) protocol stack**. It establishes network interface bindings, initializes UDP protocol control blocks, and continuously polls xemacif_input() to process incoming Ethernet frames. The application invokes transfer_data() to manage the associated DMA data transfers.
 
 ### 3. Qt Graphical User Interface Dashboard
 A cross-platform desktop control dashboard designed in C++ utilizing Qt5 frameworks. 
 *   **Main Interface Thread:** Manages the graphical panels, maps parameter choices to hex strings, and calculates spatial phase equations (\(P_a\), \(P_b\)).
-*   **Worker Thread Interface:** Implements an asynchronous worker block (`receive.cpp`) moved onto an independent `QThread`. This thread processes low-level socket connections, intercepts incoming packets, extracts exactly 29-byte telemetry segments via a dedicated buffer mask (`Datagram.left(29)`), and transmits thread-stable data buffers up to the UI layout.
+*   **Worker Thread Interface:** Implements an asynchronous worker block (`receive.cpp`) moved onto an independent `QThread`. This thread processes low-level socket connections, intercepts incoming packets, extracts the 29 bytes of incoming telemetry datagrams using Datagram.left(29) and forwards the resulting data to the GUI thread.
 
 ---
 
@@ -93,24 +97,24 @@ A cross-platform desktop control dashboard designed in C++ utilizing Qt5 framewo
 Because the core RTL blocks contain sensitive aerospace IP, this repository catalogs all architectural verification layout diagrams, timing waveforms, embedded codebases, and script assets used to validate the system:
 
 ### 💻 Hardware Design & Simulation Codebases
-*   `ABCU.vhd` — Top-level synthesizable structural block mapping internal modules to physical external LVDS I/O lines.
-*   `ABCU_Package.vhd` — Shared package configuration file declaring custom array array parameters (data_array, temp_pkt_type).
-*   `AXI_To_Tx_Bridge.vhd` — Downward AXI-Stream interface command parser implementing the 8-state header decoding and frame-locking FSM.
-*   `Tx_Channel.vhd` — Asynchronous 10 MHz serialization core driving real-time CRC-8 frame calculations and the 50 µs packet spacing delay loop.
-*   `Rx_GC_To_ABCU.vhd` — Oversampled 200 MHz serial line receiver featuring input synchronization, majority-voting bit noise sampling, and packet CRC verification.
+*   `ABCU.vhd` — Top-level synthesizable structural block integrating the 32-channel TX and RX communication networks with the Ethernet and external LVDS interfaces.
+*   `ABCU_Package.vhd` — Shared VHDL package defining custom data types and array structures, including data_array and temp_pkt_type.
+*   `AXI_To_Tx_Bridge.vhd` — Downward AXI-Stream command parser implementing header decoding, frame validation, and payload distribution.
+*   `Tx_Channel.vhd` — 32-channel UART transmit logic operating with a 10 MHz TX clock, supporting OTRM power-control, normal/dwell, and calibration packets, with CRC-8 frame processing and a hardware-controlled 50 µs packet-timing interval.
+*   `Rx_GC_To_ABCU.vhd` — 32-channel UART receive logic operating with a 200 MHz sampling clock, incorporating input synchronization, oversampling, majority voting, and CRC-8 validation.
 *   `Rx_To_AXI_Bridge.vhd` — Upward bridge manager bundling telemetry snapshot frames into AXI-Stream bursts.
-*   `Temp_sensor.vhd` — Synthesizable SPI controller reading real-time digital temperatures from an external AD7814 chip over a 1 MHz serial clock tree.
+*   `Temp_sensor.vhd` — Synthesizable SPI controller reading real-time digital temperatures from an external AD7814 chip over a 1 MHz SPI clock.
 *   `coverage_pulse_gen.vhd` — VHDL timing core generating dual-edge synchronized protect envelopes around active radar pulses.
 
 ### 🔌 Embedded C Firmware & Software Applications
 *   `bootloader.c` — Simple SREC bootloader firmware running on MicroBlaze to initialize QSPI flash memory configurations and load memory images starting at flash base address `0x01000000`.
-*   `echo.c` / `main.c` — Standalone lwIP embedded C server handling network bindings, raw UDP PCBs, and AXI DMA Simple Transfer tracking cycles.
+*   `echo.c` / `main.c` — Standalone lwIP embedded C server handling network bindings, UDP protocol control blocks, and AXI DMA Simple Transfer tracking cycles.
 
 ### 🖥️ Graphical User Interface (GUI) App Codebases
-*   `main.cpp` — Desktop application initialization routine registering string thread metadata definitions.
+*   `main.cpp` — Qt application entry point responsible for initializing the application and launching the main window.
 *   `mainwindow.cpp` / `mainwindow.h` — Real-time control dashboard layout handling math parameter conversions (\(P_a\), \(P_b\)), calibration toggles, and memory binary uploads.
-*   `receive.cpp` / `receive.h` — Asynchronous multi-threaded worker thread managing underlying raw UDP sockets and safe 29-byte telemetry array filtering.
-
+*   `receive.cpp` / `receive.h` — Asynchronous worker-thread implementation handling UDP socket reception and extraction of telemetry data for delivery to the GUI.
+  
 ### 🗺️ System Layout Block Blueprints
 *   `abcu_block_diagram.png` — Block diagram illustrating the unified system architecture (`Top_System`) across data synchronizers, 32-channel Tx/Rx paths, and the AXI telemetries.
 *   `ethernet_uart_bridge.png` — Detailed hardware netlist block diagram exported from Vivado tracking MicroBlaze connections, AXI interconnect lines, peripheral cores, and 32-channel pin assignments.
@@ -131,7 +135,7 @@ Because the core RTL blocks contain sensitive aerospace IP, this repository cata
 ### 📊 Real-Time Hardware Logic Waveforms
 *   `txrx_waveform_calibpkt.png` — Single-channel handshake timing trace verifying exact transaction-level byte execution (`ac 0f 02`) during an active Calibration Mode command sweep, physical `SDO`/`SDI` LVDS pins, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
 *   `txrx_waveform_normalphasepkt.png` — Single-channel handshake timing trace verifying exact transaction-level byte execution (`ac 32 01`) during an active Normal/Dwell Mode command sweep, physical `SDO`/`SDI` LVDS pins, and hardware interlock status assertions (`RFIF_CAL_IN`, `RFIF_CTRL_SW`).
-*   `txrx_waveform_otrmpowerpkt.png` — Serial timing trace tracking single-ended baseline line decodes and OTRM header matching loops (`ac 0f 14`).
+*   `txrx_waveform_otrmpowerpkt.png` — Serial timing trace tracking serial line decoding and OTRM header matching loops (`ac 0f 14`).
 *   `txmultichan_waveform_calibpkt.png` — Multi-channel simulation waveform demonstrating simultaneous parallel bus data output across channels (`tx_data_8_2` to `tx_data_8_20`) under a Calibration Mode layout.
 *   `txmultichan_waveform_normalphasepkt.png` — Multi-channel simulation waveform demonstrating simultaneous parallel bus data output across channels (`tx_data_8_2` to `tx_data_8_20`) under a Normal/Dwell Mode layout.
 *   `README.md` — Main technical documentation page.
