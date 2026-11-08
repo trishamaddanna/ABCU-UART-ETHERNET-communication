@@ -6,7 +6,7 @@
 
 Developed and synthesized using **Xilinx Vivado**, the architecture establishes a bidirectional data gateway between a **MicroBlaze-based 1G Ethernet infrastructure** and custom **32-channel UART-over-LVDS transmit and receive interfaces**.
 
-The Artix-7-based ABCU provides **32 transmit and 32 receive channels**, distributed across eight physical connectors, each carrying four TX and four RX channel connections. These interfaces connect to **32 Virtex-7-based Group Controllers (GCs)**, with each GC interfacing with 16 OTRMs. The subsystem supports command distribution, OTRM power control, operational mode configuration, and telemetry collection.
+The Artix-7-based ABCU provides **32 transmit and 32 receive channels**, distributed across eight physical connectors, each carrying four TX and four RX channel connections. These interfaces connect to **32 Virtex-7-based Group Controllers (GCs)**, with each GC interfacing with 16 Octal Transmitter Receiver Modules (OTRMs). The subsystem supports command distribution, OTRM power control, operational mode configuration, and telemetry collection.
 
 ---
 
